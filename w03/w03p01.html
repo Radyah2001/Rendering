@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>W3P1</title>
+
+    <!-- External JavaScript Files -->
+    <script type="text/javascript" src="MV.js" defer></script>
+    <script type="text/javascript" src="w03p01.js" defer></script>
+
+    <!-- Stylesheet -->
+    <style>
+        /* Body Styling */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            color: #333;
+            text-align: center;
+            margin: 2em;
+        }
+
+        /* Canvas Styling */
+        canvas {
+            display: block;
+            margin: 1em auto;
+            border: 1px solid #ccc;
+            background-color: #fff;
+        }
+
+        /* Button Styling */
+        button {
+            padding: 0.5em 1em;
+            font-size: 1em;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+            margin: 0.5em;
+        }
+
+        /* Button Hover Effect */
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        /* Range Input Styling */
+        input[type="range"] {
+            width: 300px;
+            height: 8px;
+            border-radius: 5px;
+            background: #d3d3d3;
+            outline: none;
+            appearance: none;
+            -webkit-appearance: none;
+            margin: 1em 0;
+        }
+
+        /* Range Slider Thumb Styling */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #007bff;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        /* Range Slider Thumb Hover Effect */
+        input[type="range"]::-webkit-slider-thumb:hover {
+            background: #0056b3;
+        }
+
+        /* Select Dropdown Styling */
+        select {
+            padding: 0.5em 1em;
+            font-size: 1em;
+            background-color: #ffffff;
+            color: #333;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+            margin: 1em 0.5em;
+        }
+
+        /* Select Dropdown Hover and Focus Effects */
+        select:hover, select:focus {
+            border-color: #007bff;
+            box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+            outline: none;
+        }
+
+        /* Option Styling (Optional) */
+        select option {
+            padding: 0.5em;
+        }
+
+        /* Controls Container Styling */
+        .controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-top: 1em;
+        }
+
+        /* Label Styling */
+        label {
+            margin-right: 0.5em;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <!-- WGSL Shader Code -->
+    <script id="wgsl" type="x-shader">
+        // Define Sampler and Texture bindings
+        @group(0) @binding(0) var my_sampler: sampler;
+        @group(0) @binding(1) var my_texture: texture_2d<f32>;
+
+        // Structure to hold vertex shader output
+        struct VSOut {
+            @builtin(position) position: vec4f, // Vertex position
+            @location(0) coords: vec2f,         // Texture coordinates
+        };
+
+        // Vertex Shader
+        @vertex
+        fn main_vs(@builtin(vertex_index) VertexIndex: u32) -> VSOut {
+            // Define positions for a full-screen quad
+            const pos = array<vec2f, 4>(
+                vec2f(-1.0,  1.0),
+                vec2f(-1.0, -1.0),
+                vec2f( 1.0,  1.0),
+                vec2f( 1.0, -1.0)
+            );
+
+            var vsOut: VSOut;
+            vsOut.position = vec4f(pos[VertexIndex], 0.0, 1.0); // Set vertex position
+            vsOut.coords = pos[VertexIndex];                      // Pass texture coordinates
+            return vsOut;
+        }
+
+        // Structure to define a Ray for ray tracing
+        struct Ray {
+            origin: vec3f,      // Ray origin
+            direction: vec3f,   // Ray direction
+            t_min: f32,         // Minimum t value
+            t_max: f32,         // Maximum t value
+        }
+
+        // Structure to hold intersection information
+        struct HitInfo {
+            has_hit: bool,          // Whether the ray hit an object
+            dist: f32,              // Distance to the hit point
+            position: vec3f,        // Position of the hit
+            normal: vec3f,          // Normal at the hit point
+            color: vec3f,           // Color of the object hit
+            shader: u32,            // Shader type identifier
+            sphere: bool,           // Whether the hit object is a sphere
+            depth: u32,             // Recursion depth for ray tracing
+            ior1_over_ior2: f32,    // Index of refraction ratio
+            cos_sq_t: f32,          // Cosine squared of the transmission angle
+            specular: f32,          // Specular reflection coefficient
+            shininess: f32,         // Shininess factor for Phong shading
+            u: f32,                 // Texture U coordinate
+            v: f32,                 // Texture V coordinate
+            use_texture: bool,      // Flag to determine if texture is used
+        };
+
+        // Structure for Orthonormal Basis (Unused in current shader but kept for future use)
+        struct Onb {
+            tangent: vec3f,
+            binormal: vec3f,
+            normal: vec3f,
+        };
+
+        // Fragment Shader
+        @fragment
+        fn main_fs(@location(0) coords: vec2f) -> @location(0) vec4f {
+            // Sample the texture using the sampler and texture coordinates
+            return textureSample(my_texture, my_sampler, coords);
+        }
+    </script>
+
+    <!-- WebGPU Canvas -->
+    <canvas id="webgpu-canvas" width="800" height="600">
+        Please use a browser that supports HTML5 canvas.
+    </canvas>
+
+    <!-- Controls Container -->
+    <div class="controls">
+        <!-- Address Mode Selection -->
+        <div>
+            <label for="addressmode">Address Mode:</label>
+            <select id="addressmode">
+                <option value="clamp-to-edge">Clamp to Edge</option>
+                <option value="repeat" selected>Repeat</option>
+            </select>
+        </div>
+
+        <!-- Filter Mode Selection -->
+        <div>
+            <label for="filtermode">Filter Mode:</label>
+            <select id="filtermode">
+                <option value="nearest">Nearest</option>
+                <option value="linear" selected>Linear</option>
+            </select>
+        </div>
+    </div>
+</body>
+</html>

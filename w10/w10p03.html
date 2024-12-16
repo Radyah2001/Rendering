@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rendering Explanation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.5;
+        }
+        h2 {
+            color: #333;
+        }
+        ul {
+            list-style-type: disc;
+            margin-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Rendering Explanation</h1>
+
+    <h2>1. Mirror Appearance</h2>
+    <ul>
+        <li><strong>Sphere:</strong> Metallic (1.0), Roughness (0.0) for a perfect mirror.</li>
+        <li><strong>Cube:</strong> Same settings as sphere for matching reflectivity.</li>
+        <li><strong>Rendering:</strong> Changed to Cycles render engine </li>
+    </ul>
+
+    <h2>2. Metallic Sphere & Glass Cube</h2>
+    <ul>
+        <li><strong>Sphere:</strong> Metallic (1.0), Roughness (0.0), vibrant color for a glossy look.</li>
+        <li><strong>Cube:</strong> Transmission (1.0), IOR (1.5), Roughness (0.0) for glass effect.</li>
+    </ul>
+
+    <h2>3. Cool Scene with Mesh</h2>
+    <ul>
+        <li><strong>Meshes:</strong> Metallic/glossy materials</li>
+    </ul>
+</body>
+</html>

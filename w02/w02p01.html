@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>W2P1</title>
+
+    <!-- External JavaScript Files -->
+    <script type="text/javascript" src="w02p01.js"></script>
+    <script type="text/javascript" src="MV.js"></script>
+
+    <!-- Stylesheet -->
+    <style>
+        /* Body Styling */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            color: #333;
+            text-align: center;
+            margin: 2em;
+        }
+
+        /* Canvas Styling */
+        canvas {
+            display: block;
+            margin: 1em auto;
+            border: 1px solid #ccc;
+            background-color: #fff;
+        }
+
+        /* Button Styling */
+        button {
+            padding: 0.5em 1em;
+            font-size: 1em;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        /* Button Hover Effect */
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        /* Range Input Styling */
+        input[type="range"] {
+            width: 300px;
+            height: 8px;
+            border-radius: 5px;
+            background: #d3d3d3;
+            outline: none;
+            appearance: none;
+            -webkit-appearance: none;
+        }
+
+        /* Range Slider Thumb Styling */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #007bff;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        /* Range Slider Thumb Hover Effect */
+        input[type="range"]::-webkit-slider-thumb:hover {
+            background: #0056b3;
+        }
+    </style>
+
+    <!-- Shader Code -->
+    <script id="wgsl" type="x-shader">
+        // Define Uniforms struct
+        struct Uniforms {
+            aspect: f32,
+            cam_constant: f32,
+            gamma: f32,
+        };
+        @group(0) @binding(0) var<uniform> uniforms: Uniforms;
+
+        // Define VSOut struct for Vertex Shader Output
+        struct VSOut {
+            @builtin(position) position: vec4f,
+            @location(0) coords: vec2f,
+        };
+
+        // Define Light struct
+        struct Light {
+            L_i: f32,
+            w_i: vec3f,
+            dist: f32,
+        };
+
+        // Define pi as a constant
+        const PI: f32 = 3.14159265359;
+
+        // Vertex Shader Main Function
+        @vertex
+        fn main_vs(@builtin(vertex_index) VertexIndex: u32) -> VSOut {
+            // Define positions for a full-screen quad
+            const pos = array<vec2f, 4>(
+                vec2f(-1.0, 1.0),
+                vec2f(-1.0, -1.0),
+                vec2f(1.0, 1.0),
+                vec2f(1.0, -1.0)
+            );
+
+            var vsOut: VSOut;
+            vsOut.position = vec4f(pos[VertexIndex], 0.0, 1.0);
+            vsOut.coords = pos[VertexIndex];
+            return vsOut;
+        }
+
+        // Define Ray struct
+        struct Ray {
+            origin: vec3f,
+            direction: vec3f,
+            t_min: f32,
+            t_max: f32,
+        };
+
+        // Define Shadow Ray struct
+        struct ShadowRay {
+            origin: vec3f,
+            direction: vec3f,
+            t_min: f32,
+            t_max: f32,
+        };
+
+        // Define HitInfo struct to store intersection details
+        struct HitInfo {
+            has_hit: bool,
+            dist: f32,
+            position: vec3f,
+            normal: vec3f,
+            color: vec3f,
+            shader: u32,
+        };
+
+        // Function to generate a camera ray based on UV coordinates
+        fn get_camera_ray(uv: vec2f) -> Ray {
+            var p = vec3f(0.0, 0.5, 0.0); // Look-at point
+            var up_vec = vec3f(0.0, 1.0, 0.0); // Up vector
+
+            var r: Ray;
+            r.origin = vec3f(2.0, 1.5, 2.0); // Camera position
+
+            var v = normalize(p - r.origin); // Forward vector
+            var b1 = normalize(cross(v, up_vec)); // Right vector
+            var b2 = cross(b1, v); // True up vector
+
+            var q = b1 * uv.x + b2 * uv.y + v * uniforms.cam_constant;
+            r.direction = normalize(q);
+            r.t_min = 0.0;
+            r.t_max = 1.0e32;
+
+            return r;
+        }
+
+        // Function to intersect a ray with a plane
+        fn intersect_plane(r: Ray, hit: ptr<function, HitInfo>, position: vec3f, normal: vec3f) -> bool {
+            let denom = dot(r.direction, normal);
+            if (abs(denom) < 1e-8) {
+                return false; // Ray is parallel to the plane
+            }
+
+            let t_prime = dot((position - r.origin), normal) / denom;
+            if (t_prime > r.t_min && t_prime < r.t_max) {
+                (*hit).has_hit = true;
+                (*hit).dist = t_prime;
+                (*hit).position = r.origin + t_prime * r.direction;
+                (*hit).normal = normal;
+                return true;
+            }
+
+            return false;
+        }
+
+        // Function to intersect a ray with a triangle
+        fn intersect_triangle(r: Ray, hit: ptr<function, HitInfo>, v: array<vec3f, 3>) -> bool {
+            let e0 = v[1] - v[0];
+            let e1 = v[2] - v[0];
+            let normal = cross(e0, e1);
+
+            let denom = dot(r.direction, normal);
+            if (abs(denom) < 1e-8) {
+                return false; // Ray is parallel to the triangle
+            }
+
+            let beta = dot(cross(v[0] - r.origin, r.direction), e1) / denom;
+            let gamma = -dot(cross(v[0] - r.origin, r.direction), e0) / denom;
+
+            if (beta >= 0 && gamma >= 0 && (beta + gamma) <= 1) {
+                let t_prime = dot(v[0] - r.origin, normal) / denom;
+                if (t_prime > r.t_min && t_prime < r.t_max) {
+                    (*hit).has_hit = true;
+                    (*hit).dist = t_prime;
+                    (*hit).position = r.origin + t_prime * r.direction;
+                    (*hit).normal = normalize(normal);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // Function to intersect a ray with a sphere
+        fn intersect_sphere(r: Ray, hit: ptr<function, HitInfo>, center: vec3f, radius: f32) -> bool {
+            let oc = r.origin - center;
+            let a = dot(r.direction, r.direction);
+            let b = 2.0 * dot(oc, r.direction);
+            let c = dot(oc, oc) - radius * radius;
+            let discriminant = b * b - 4.0 * a * c;
+
+            if (discriminant < 0.0) {
+                return false; // No real roots, no intersection
+            }
+
+            let sqrt_discriminant = sqrt(discriminant);
+            let t1 = (-b - sqrt_discriminant) / (2.0 * a);
+            let t2 = (-b + sqrt_discriminant) / (2.0 * a);
+
+            if (t1 > r.t_min && t1 < r.t_max) {
+                (*hit).has_hit = true;
+                (*hit).dist = t1;
+                (*hit).position = r.origin + t1 * r.direction;
+                (*hit).normal = normalize((*hit).position - center);
+                return true;
+            }
+
+            if (t2 > r.t_min && t2 < r.t_max) {
+                (*hit).has_hit = true;
+                (*hit).dist = t2;
+                (*hit).position = r.origin + t2 * r.direction;
+                (*hit).normal = normalize((*hit).position - center);
+                return true;
+            }
+
+            return false;
+        }
+
+        // Function to intersect a ray with the entire scene
+        fn intersect_scene(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> bool {
+            // Intersect with plane
+            if (intersect_plane((*r), hit, vec3f(0.0), vec3f(0.0, 1.0, 0.0))) {
+                (*hit).color = vec3f(0.1, 0.7, 0.0); // Greenish color for the plane
+                (*r).t_max = (*hit).dist;
+            }
+
+            // Intersect with a triangle
+            if (intersect_triangle((*r), hit, array<vec3f, 3>(
+                vec3f(-0.2, 0.1, 0.9),
+                vec3f(0.2, 0.1, 0.9),
+                vec3f(-0.2, 0.1, -0.1)
+            ))) {
+                (*hit).color = vec3f(0.4, 0.3, 0.2); // Brownish color for the triangle
+                (*r).t_max = (*hit).dist;
+            }
+
+            // Intersect with a sphere
+            if (intersect_sphere((*r), hit, vec3f(0.0, 0.5, 0.0), 0.3)) {
+                (*hit).color = vec3f(0.0, 0.0, 0.0); // Black color for the sphere
+                (*r).t_max = (*hit).dist;
+            }
+
+            (*hit).shader = 1; // Assign shader type
+            return (*hit).has_hit;
+        }
+
+        // Function to sample a point light source
+        fn sample_point_light(pos: vec3f) -> Light {
+            var light: Light;
+            let light_pos = vec3f(0.0, 1.0, 0.0); // Position of the light source
+            light.L_i = PI / dot(light_pos - pos, light_pos - pos); // Intensity
+            light.w_i = normalize(light_pos - pos); // Light direction
+            light.dist = length(light_pos - pos); // Distance to light
+            return light;
+        }
+
+        // Lambertian shading model
+        fn lambertian(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> vec3f {
+            let light: Light = sample_point_light((*hit).position);
+            let L_a = (*hit).color * 0.1;  // Ambient light component
+            let ro = (*hit).color * 0.9;   // Reflective color
+            let L_r = ro * light.L_i * max(dot((*hit).normal, light.w_i), 0.0) / PI; // Diffuse reflection
+
+            // Create a shadow ray
+            var shadow_ray = Ray(
+                (*hit).position,
+                normalize(vec3f(0.0, 1.0, 0.0) - (*hit).position),
+                1.0e-4,
+                light.dist
+            );
+
+            var shadow_hit = HitInfo(false, 0.0, vec3f(0.0), vec3f(0.0), vec3f(0.0), 1);
+            if (intersect_scene(&shadow_ray, &shadow_hit)) {
+                return L_a; // In shadow, only ambient light
+            } else {
+                return L_r + L_a; // Add diffuse and ambient light
+            }
+        }
+
+        // Shading function based on shader type
+        fn shade(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> vec3f {
+            switch (*hit).shader {
+                case 1 {
+                    return lambertian(r, hit);
+                }
+                default {
+                    return (*hit).color;
+                }
+            }
+        }
+
+        // Fragment Shader Main Function
+        @fragment
+        fn main_fs(@location(0) coords: vec2f) -> @location(0) vec4f {
+            let bgcolor = vec4f(0.1, 0.3, 0.6, 1.0); // Background color
+            let max_depth = 10; // Maximum recursion depth for ray tracing
+
+            // Adjust UV coordinates based on aspect ratio
+            let uv = vec2f(coords.x * uniforms.aspect * 0.5, coords.y * 0.5);
+
+            // Generate camera ray
+            var r = get_camera_ray(uv);
+            var result = vec3f(0.0);
+            var hit = HitInfo(false, 0.0, vec3f(0.0), vec3f(0.0), vec3f(0.0), 1);
+
+            // Ray tracing loop
+            for (var i = 0; i < max_depth; i = i + 1) {
+                if (intersect_scene(&r, &hit)) {
+                    result = result + shade(&r, &hit);
+                } else {
+                    result = result + bgcolor.rgb;
+                    break; // No intersection, use background color
+                }
+
+                if (hit.has_hit) {
+                    break; // Intersection found
+                }
+            }
+
+            return vec4f(result, bgcolor.a); // Return final color with alpha
+        }
+    </script>
+</head>
+<body>
+    <!-- WebGPU Canvas -->
+    <canvas id="webgpu-canvas" width="800" height="600">
+        Please use a browser that supports HTML5 canvas.
+    </canvas>
+
+    <!-- Zoom Control Slider -->
+    <div>
+        <label for="zoom-slider">Zoom:</label>
+        <input type="range" id="zoom-slider" min="0.1" max="10.0" step="0.01" value="1.0">
+    </div>
+</body>
+</html>

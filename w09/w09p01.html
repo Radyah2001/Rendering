@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>    
+    <meta charset="UTF-8">
+    <title>W9P1</title>     
+
+    <!-- External JavaScript Files -->
+    <script type="text/javascript" src="w09p01.js"></script>
+    <script type="text/javascript" src="MV.js"></script>
+    <script type="text/javascript" src="OBJParser_interleaved.js"></script>
+    <script type="text/javascript" src="BspTree_interleaved.js"></script>
+    <script type="text/javascript" src="Aabb.js"></script>
+
+    <!-- Stylesheet -->
+    <style>
+        /* Body Styling */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            color: #333;
+            text-align: center;
+            margin: 2em;
+        }
+
+        /* Canvas Styling */
+        canvas {
+            display: block;
+            margin: 1em auto;
+            border: 1px solid #ccc;
+            background-color: #fff;
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* Button Styling */
+        button {
+            padding: 0.5em 1em;
+            font-size: 1em;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+            margin: 0.5em;
+        }
+
+        /* Button Hover Effect */
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <!-- WGSL Shader Code -->
+    <script id="wgsl" type="x-shader">
+        // ========================
+        // WGSL Shader Code for W9P1
+        // ========================
+
+        // ------------------------
+        // Struct Definitions
+        // ------------------------
+
+        // Struct to hold uniform variables
+        struct Uniforms {
+            aspect: f32,        // Aspect ratio of the canvas
+            cam_constant: f32,  // Camera constant for ray generation
+        };
+
+        // Struct to hold UI-related uniform variables
+        struct Uniforms_UI {
+            height: u32,  // Height of the rendering canvas
+            width: u32,   // Width of the rendering canvas
+            frame: u32,   // Current frame number for progressive rendering
+        };
+
+        // Axis-Aligned Bounding Box (AABB) Struct
+        struct Aabb {
+            min: vec3f,  // Minimum coordinates
+            max: vec3f,  // Maximum coordinates
+        };
+
+        // Interleaved Attributes Struct
+        struct Attribs {
+            vPositions: vec3f, // Vertex positions
+            vNormals: vec3f,   // Vertex normals
+        };
+
+        // Color Attributes Struct
+        struct ColorAttribs {
+            color: vec4f,     // Base color
+            emission: vec4f,  // Emission color
+        };
+        
+        // Maximum levels for BSP Tree
+        const MAX_LEVEL: u32 = 20u;
+
+        // Leaf identifier for BSP Tree nodes
+        const BSP_LEAF: u32 = 3u;
+
+        // Branch nodes storage for BSP Tree traversal
+        var<private> branch_node: array<vec2u, MAX_LEVEL>;
+        var<private> branch_ray: array<vec2f, MAX_LEVEL>;
+
+        // Binding group 0, binding 0: Uniform buffer
+        @group(0) @binding(0) var<uniform> uniforms: Uniforms;
+
+        // Binding group 0, binding 1: Uniforms for UI
+        @group(0) @binding(1) var<uniform> uniforms_ui: Uniforms_UI;
+
+        // Binding group 0, binding 2: AABB uniform buffer
+        @group(0) @binding(2) var<uniform> aabb: Aabb;
+
+        // Binding group 0, binding 3-12: Storage buffers and textures
+        @group(0) @binding(3) var<storage> attribs: array<Attribs>;
+        @group(0) @binding(4) var<storage> meshFaces: array<vec4u>;
+        @group(0) @binding(5) var<storage> materialColorEmission: array<ColorAttribs>;
+        //@group(0) @binding(6) var<storage> lightIndices: array<u32>; // Commented out
+        @group(0) @binding(7) var<storage> treeIds: array<u32>;
+        @group(0) @binding(8) var<storage> bspTree: array<vec4u>;
+        @group(0) @binding(9) var<storage> bspPlanes: array<f32>;
+        @group(0) @binding(10) var<storage> jitter: array<vec2f>;
+        @group(0) @binding(11) var renderTexture: texture_2d<f32>;
+        @group(0) @binding(12) var environment: texture_2d<f32>;
+
+        // Struct to pass data from vertex shader to fragment shader
+        struct VSOut {
+            @builtin(position) position: vec4f, // Position in clip space
+            @location(0) coords: vec2f,         // Texture coordinates
+        }
+
+        // Struct to represent a light source
+        struct Light {
+            //L_i: f32,
+            L_i: vec3f,        // Intensity of the light (RGB)
+            w_i: vec3f,        // Direction or position of the light
+            dist: f32,         // Distance to the light source
+        }
+
+        // Struct to represent a ray in the scene
+        struct Ray {
+            origin: vec3f,     // Origin point of the ray
+            direction: vec3f,  // Direction vector of the ray
+            t_min: f32,        // Minimum distance for intersection
+            t_max: f32,        // Maximum distance for intersection
+        }
+
+        // Struct to hold information about a ray intersection
+        struct HitInfo {
+            has_hit: bool,        // Whether the ray hit an object
+            dist: f32,            // Distance to the hit point
+            position: vec3f,      // Position of the hit
+            normal: vec3f,        // Normal at the hit point
+            color: vec3f,         // Color at the hit point
+            depth: u32,           // Depth information (unused here)
+            shader: u32,          // Shader type identifier
+            ior1_over_ior2: f32,  // Index of Refraction ratio
+            cos_sq_t: f32,        // Cosine squared of the transmission angle
+            emission: vec3f,      // Emission color at the hit point
+            emit: bool,           // Flag to indicate emission
+            rgbFactor: vec3f,     // Factor for color accumulation
+            sigma_t: vec3f,       // Extinction coefficient for volumetric scattering
+            inside: bool,         // Flag to indicate if the ray is inside a medium
+        };
+
+        // Struct for Orthonormal Basis (Unused in current code)
+        struct Onb {
+            tangent: vec3f,
+            binormal: vec3f,
+            normal: vec3f,
+        };
+        
+        // ------------------------
+        // Constants
+        // ------------------------
+
+        const PI: f32 = 3.14159265359; // Pi constant
+
+        // ------------------------
+        // Vertex Shader
+        // ------------------------
+
+        @vertex
+        fn main_vs(@builtin(vertex_index) VertexIndex: u32) -> VSOut {
+            // Define the positions of the vertices in clip space
+            const pos = array<vec2f, 4>(
+                vec2f(-1.0, 1.0),
+                vec2f(-1.0, -1.0),
+                vec2f(1.0, 1.0),
+                vec2f(1.0, -1.0)
+            );
+            var vsOut: VSOut;
+            vsOut.position = vec4f(pos[VertexIndex], 0.0, 1.0); // Set clip space position
+            vsOut.coords = pos[VertexIndex];                      // Pass texture coordinates
+            return vsOut;
+        }
+
+        // ------------------------
+        // Ray Generation
+        // ------------------------
+
+        // Generates a camera ray based on normalized device coordinates (uv)
+        fn get_camera_ray(uv: vec2f) -> Ray {
+            var p: vec3f = vec3f(0.15, 1.5, 0.0); // Pivot point
+            var up_vec: vec3f = vec3f(0.0, 1.0, 0.0); // Up vector for camera orientation
+            var r: Ray;
+            r.origin = vec3f(0.15, 1.5, 10.0); // Camera position in world space
+            var v: vec3f = normalize(p - r.origin); // Forward vector
+            var b1: vec3f = normalize(cross(v, up_vec)); // Right vector
+            var b2: vec3f = cross(b1, v); // Recomputed up vector
+            var q: vec3f = b1 * uv.x + b2 * uv.y + v * uniforms.cam_constant; // Direction computation
+            r.direction = normalize(q); // Normalize direction
+            r.t_min = 0.02; // Minimum intersection distance
+            r.t_max = 1.0e32; // Maximum intersection distance
+            return r;
+        }
+
+        // ------------------------
+        // Intersection Tests
+        // ------------------------
+
+        // Tests intersection between a ray and the AABB
+        fn intersect_min_max(r: ptr<function, Ray>) -> bool { 
+            let p1: vec3f = (aabb.min - (*r).origin) / (*r).direction;
+            let p2: vec3f = (aabb.max - (*r).origin) / (*r).direction;
+            let pmin: vec3f = min(p1, p2);
+            let pmax: vec3f = max(p1, p2);
+            let tmin: f32 = max(pmin.x, max(pmin.y, pmin.z));
+            let tmax: f32 = min(pmax.x, min(pmax.y, pmax.z));
+            if (tmin > tmax || tmin > (*r).t_max || tmax < (*r).t_min) {
+                return false;
+            }
+            (*r).t_min = max(tmin - 1.0e-2f, (*r).t_min);
+            (*r).t_max = min(tmax + 1.0e-2f, (*r).t_max);
+            return true;
+        }
+
+        // Tests intersection between a ray and a triangle
+        fn intersect_triangle(r: Ray, hit: ptr<function, HitInfo>, f_index: u32) -> bool {
+            var f: vec4u = meshFaces[f_index];
+            var v0: vec3f = attribs[f.x].vPositions;
+            var v1: vec3f = attribs[f.y].vPositions;
+            var v2: vec3f = attribs[f.z].vPositions;
+            var n0: vec3f = attribs[f.x].vNormals;
+            var n1: vec3f = attribs[f.y].vNormals;
+            var n2: vec3f = attribs[f.z].vNormals;
+
+            var e0: vec3f = v1 - v0;
+            var e1: vec3f = v2 - v0;
+            var normal: vec3f = cross(e0, e1);
+            if ((abs(dot(r.direction, normal))) < 1e-8) {
+                return false;
+            }
+            var beta: f32 = dot(cross(v0 - r.origin, r.direction), e1) / dot(r.direction, normal);
+            var gamma: f32 = -dot(cross(v0 - r.origin, r.direction), e0) / dot(r.direction, normal);
+            if (beta >= 0 && gamma >= 0 && beta + gamma <= 1) {
+                var t_prime: f32 = dot(v0 - r.origin, normal) / dot(r.direction, normal);
+                if (t_prime > r.t_min && t_prime < r.t_max) {
+                    (*hit).has_hit = true;
+                    (*hit).dist = t_prime;
+                    (*hit).position = r.origin + t_prime * r.direction;
+                    // Interpolate normals using barycentric coordinates for smooth shading
+                    (*hit).normal = normalize((1.0 - beta - gamma) * n0 + beta * n1 + gamma * n2);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // Struct to hold index information
+        struct Idx {
+            i: u32,
+        };
+
+        // Tests intersection between a ray and the entire scene using BSP Tree
+        fn intersect_trimesh(r: ptr<function, Ray>, hit: ptr<function, HitInfo>, idx: ptr<function, Idx>) -> bool {
+            var branch_lvl: u32 = 0u;
+            var near_node: u32 = 0u;
+            var far_node: u32 = 0u;
+            var t: f32 = 0.0f;
+            var node: u32 = 0u;
+
+            for (var i: u32 = 0u; i <= MAX_LEVEL; i++) {
+                let tree_node: vec4u = bspTree[node];
+                let node_axis_leaf: u32 = tree_node.x & 3u; // Extract axis and leaf info
+
+                if (node_axis_leaf == BSP_LEAF) {
+                    let node_count: u32 = tree_node.x >> 2u;
+                    let node_id: u32 = tree_node.y;
+                    var found: bool = false;
+
+                    for (var j: u32 = 0u; j < node_count; j++) {
+                        let obj_idx: u32 = treeIds[node_id + j];
+                        if (intersect_triangle(*r, hit, obj_idx)) {
+                            (*r).t_max = (*hit).dist;
+                            (*idx).i = obj_idx;
+                            found = true;
+                        }
+                    }
+
+                    if (found) {
+                        return true;
+                    } else if (branch_lvl == 0u) {
+                        return false;
+                    } else {
+                        branch_lvl--;
+                        i = branch_node[branch_lvl].x;
+                        node = branch_node[branch_lvl].y;
+                        (*r).t_min = branch_ray[branch_lvl].x;
+                        (*r).t_max = branch_ray[branch_lvl].y;
+                        continue;
+                    }
+                }
+
+                let axis_direction: f32 = (*r).direction[node_axis_leaf];
+                let axis_origin: f32 = (*r).origin[node_axis_leaf];
+
+                if (axis_direction >= 0.0f) {
+                    near_node = tree_node.z;
+                    far_node = tree_node.w;
+                } else {
+                    near_node = tree_node.w;
+                    far_node = tree_node.z;
+                }
+
+                let node_plane: f32 = bspPlanes[node];
+                let denom: f32 = select(axis_direction, 1.0e-8f, abs(axis_direction) < 1.0e-8f);
+                t = (node_plane - axis_origin) / denom;
+
+                if (t > (*r).t_max) {
+                    node = near_node;
+                } else if (t < (*r).t_min) {
+                    node = far_node;
+                } else {
+                    branch_node[branch_lvl].x = i;
+                    branch_node[branch_lvl].y = far_node;
+                    branch_ray[branch_lvl].x = t;
+                    branch_ray[branch_lvl].y = (*r).t_max;
+                    branch_lvl++;
+                    (*r).t_max = t;
+                    node = near_node;
+                }
+            }   
+
+            return false;
+        }
+
+        // ------------------------
+        // Intersection with Sphere
+        // ------------------------
+
+        // Tests intersection between a ray and a sphere
+        fn intersect_sphere(r: Ray, hit: ptr<function, HitInfo>, center: vec3f, radius: f32) -> bool {
+            var b_half: f32 = dot((r.origin - center), r.direction);
+            var c: f32 = dot(r.origin - center, r.origin - center) - pow(radius, 2.0);
+            var temp: f32 = pow(b_half, 2.0) - c;
+
+            if (temp < 0.0f) {
+                return false;
+            }
+
+            var t1: f32 = -b_half - sqrt(temp);
+            if (t1 > r.t_min && t1 < r.t_max) {
+                (*hit).has_hit = true;
+                (*hit).dist = t1;
+                (*hit).position = r.origin + t1 * r.direction;
+                (*hit).normal = normalize((*hit).position - center);
+                return true;
+            }
+
+            var t2: f32 = -b_half + sqrt(temp);
+            if (t2 > r.t_min && t2 < r.t_max) {
+                (*hit).has_hit = true;
+                (*hit).dist = t2;
+                (*hit).position = r.origin + t2 * r.direction;
+                (*hit).normal = normalize((*hit).position - center);
+                return true;
+            }
+
+            return false;
+        }
+
+        // ------------------------
+        // Scene Intersection
+        // ------------------------
+
+        // Tests intersection between a ray and the entire scene
+        fn intersect_scene(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> bool {
+            var idx: Idx;
+
+            // Uncomment the following blocks to include sphere intersections in the scene
+            /*
+            if(intersect_sphere((*r), hit, vec3f(420.0, 90.0, 370.0), 90.0)) {
+                (*r).t_max = (*hit).dist;
+                (*hit).color = vec3f(0.0, 0.0, 0.0);
+                (*hit).shader = 2;
+                if(dot((*hit).normal, (*r).direction) < 0.0f) {
+                    (*hit).ior1_over_ior2 = 1.0 / 1.5;
+                }
+                else {
+                    (*hit).ior1_over_ior2 = 1.5;
+                    (*hit).normal = -(*hit).normal;
+                }
+            }
+            if(intersect_sphere((*r), hit, vec3f(130.0, 90.0, 250.0), 90.0)) {
+                (*r).t_max = (*hit).dist;
+                (*hit).color = vec3f(0.0, 0.0, 0.0);
+                (*hit).shader = 4;
+                (*hit).sigma_t = vec3f(0.4, 0.4, 0.39);
+                //(*hit).sigma_t = vec3f(1e-1, 1e-1, 1e-2);
+                (*hit).inside = dot((*hit).normal, (*r).direction) > 0.0f;
+                if(!(*hit).inside) {
+                    (*hit).ior1_over_ior2 = 1.0 / 1.5;
+                }
+                else {
+                    (*hit).ior1_over_ior2 = 1.5;
+                    (*hit).normal = -(*hit).normal;
+                }
+            }
+            */
+
+            // Triangle mesh intersection
+            if(intersect_trimesh(r, hit, &idx)) { 
+                var face: u32 = meshFaces[idx.i].w;
+                (*hit).color = materialColorEmission[face].color.xyz;
+                (*hit).emission = materialColorEmission[face].emission.xyz;
+                (*hit).shader = 2;
+            }
+            return (*hit).has_hit;
+        }
+
+        // ------------------------
+        // Lighting Calculations
+        // ------------------------
+
+        // Samples a point light at a given position
+        fn sample_point_light(pos: vec3f) -> Light {
+            var light: Light;
+            var light_pos: vec3f = vec3f(0.0, 1.0, 0.0); // Position of the point light
+            light.L_i = vec3f(PI) / dot(light_pos - pos, light_pos - pos); // Light intensity based on distance
+            light.w_i = normalize(light_pos - pos);                // Light direction
+            light.dist = length(light_pos - pos);                  // Distance to light
+            return light;
+        }
+
+        // Samples a directional light
+        fn sample_directional_light(pos: vec3f) -> Light {
+            var dir_light: Light;
+            dir_light.L_i = vec3f(PI);                             // Fixed intensity for directional light (RGB)
+            dir_light.w_i = -normalize(vec3f(-1.0, -1.0, -1.0));  // Direction of the light
+            dir_light.dist = 1.0e8;                                 // Directional light has effectively infinite distance
+            // dir_light.dist = 0.0;                                // Alternative: Zero distance (commented out)
+            return dir_light;
+        }
+
+        // Calculates the area of a triangle
+        fn calculate_area(v1: vec3f, v2: vec3f, v3: vec3f) -> f32 {
+            var AB: vec3f = v2 - v1;
+            var AC: vec3f = v3 - v1;
+            return 0.5 * length(cross(AB, AC));
+        }
+
+        // Calculates the normal area (unused)
+        fn calculate_normal_area(v1: vec3f, v2: vec3f, v3: vec3f) -> vec3f {
+            var AB: vec3f = v2 - v1;
+            var AC: vec3f = v3 - v1;
+            return 0.5 * cross(AB, AC);
+        }
+
+        // Calculates the center of a triangle
+        fn calculate_center(v1: vec3f, v2: vec3f, v3: vec3f) -> vec3f {
+            var x: f32 = (v1.x + v2.x + v3.x) / 3.0;
+            var y: f32 = (v1.y + v2.y + v3.y) / 3.0;
+            var z: f32 = (v1.z + v2.z + v3.z) / 3.0;
+            return vec3f(x, y, z);
+        }
+
+        // Area light sampling function (currently commented out)
+        fn sample_area_light(pos: vec3f, t: ptr<function, u32>) -> Light {
+            var area_light: Light;
+            var L_e: f32 = 30.0;
+
+            // Uncomment and modify the following lines to enable area light sampling
+            /*
+            var n: u32 = arrayLength(&lightIndices);
+            var idx: i32 = i32(rnd(t) * f32(n));
+            var lightIndex: u32 = lightIndices[idx];
+            var f: vec4u = meshFaces[lightIndex];
+
+            var rand_1: f32 = rnd(t);
+            var rand_2: f32 = rnd(t);
+            var alpha: f32 = 1.0 - sqrt(rand_1);
+            var beta: f32 = (1.0 - rand_2) * sqrt(rand_1);
+            var gamma: f32 = rand_2 * sqrt(rand_1);
+
+            var light_pos: vec3f = alpha * attribs[f.x].vPositions + beta * attribs[f.y].vPositions + gamma * attribs[f.z].vPositions;
+            var int_normal: vec3f = normalize(alpha * attribs[f.x].vNormals + beta * attribs[f.y].vNormals + gamma * attribs[f.z].vNormals);
+            
+            area_light.w_i = (light_pos - pos);
+            area_light.dist = length(area_light.w_i);
+
+            area_light.w_i = normalize(area_light.w_i);
+
+            var r: f32 = length(light_pos - pos);
+            var area: f32 = calculate_area(attribs[f.x].vPositions, attribs[f.y].vPositions, attribs[f.z].vPositions);
+            area_light.L_i = materialColorEmission[f.w].emission.xyz * max(dot(int_normal, -area_light.w_i), 0.0) * f32(n) * area;
+            area_light.L_i /= pow(r, 2.0);
+            */
+
+            return area_light;
+        }
+
+        // Rotates a vector to align with a given normal
+        fn rotate_to_normal(normal: vec3f, v: vec3f) -> vec3f {
+            let signbit: f32 = sign(normal.z + 1.0e-16f);
+            let a: f32 = -1.0f / (1.0f + abs(normal.z));
+            let b: f32 = normal.x * normal.y * a;
+            return vec3f(1.0f + normal.x * normal.x * a, b, -signbit * normal.x) * v.x
+                + vec3f(signbit * b, signbit * (1.0f + normal.y * normal.y * a), -normal.y) * v.y
+                + normal * v.z;
+        }
+
+        // Generates a spherical direction based on theta and phi
+        fn spherical_direction(sin_theta: f32, cos_theta: f32, phi: f32) -> vec3f {
+            let sin_phi: f32 = sin(phi);
+            let cos_phi: f32 = cos(phi);
+            return vec3f(sin_theta * cos_phi, sin_theta * sin_phi, cos_theta);
+        }
+
+        // ------------------------
+        // Lambertian Reflectance
+        // ------------------------
+
+        // Lambertian reflectance function
+        fn lambertian(r: ptr<function, Ray>, hit: ptr<function, HitInfo>, t: ptr<function, u32>) -> vec3f {
+            // Uncomment one of the following lines to choose the type of light
+            // var light: Light = sample_point_light((*hit).position);
+            var light: Light = sample_directional_light((*hit).position);
+            // var light: Light = sample_area_light((*hit).position, t);
+
+            var ro: vec3f = (*hit).color;   // Reflective color
+            var L_r: vec3f = vec3f(0.0);   // Accumulated emission and reflection
+
+            // Calculate emission if the surface is emissive
+            if ((*hit).emit) {
+                L_r += (*hit).emission;
+            }
+
+            // Sample a new direction for indirect lighting
+            var rand_1: f32 = rnd(t);
+            var rand_2: f32 = rnd(t);
+            var theta: f32 = acos(sqrt(1.0 - rand_1));
+            var phi: f32 = 2.0 * PI * rand_2;
+            var w_ij: vec3f = spherical_direction(sin(theta), cos(theta), phi);
+            w_ij = rotate_to_normal((*hit).normal, w_ij);
+
+            // Update ray for the next bounce
+            (*hit).emit = false;
+            (*hit).rgbFactor *= ro;
+            (*hit).has_hit = false; 
+            (*hit).depth = (*hit).depth + 1;
+            (*r).origin = (*hit).position;
+            (*r).t_min = 1.0e-2;
+            (*r).t_max = 1.0e32;
+            (*r).direction = w_ij;
+
+            // Shadow ray to check for occlusions
+            var shadow_ray: Ray = Ray((*hit).position, light.w_i, 1.0e-2, light.dist - 1.0e-2);
+            var shadow_hit: HitInfo = HitInfo(false, 0.0, vec3f(0.0), vec3f(0.0), vec3f(0.0), 0, 1, 0.0, 0.0, vec3f(0.0), false, vec3f(1.0), vec3f(0.0), false);
+
+            // If the shadow ray does not intersect the scene, add diffuse and ambient light
+            if (!intersect_scene(&shadow_ray, &shadow_hit)) {
+                L_r += ro * light.L_i * max(dot(light.w_i, (*hit).normal), 0.0) / PI;
+            }
+            return L_r;
+        }
+
+        // ------------------------
+        // Shading Function
+        // ------------------------
+
+        // Determines the color based on the shader type
+        fn shade(r: ptr<function, Ray>, hit: ptr<function, HitInfo>, t: ptr<function, u32>) -> vec3f {
+            switch (*hit).shader {
+                case 0 {
+                    return (*hit).color; // Simple color shading
+                }
+                case 1 {
+                    return lambertian(r, hit, t); // Lambertian shading
+                }
+                case 2 {
+                    return reflection_shader(r, hit); // Reflection shading
+                }
+                case 3 {
+                    return refraction_shader(r, hit); // Refraction shading
+                }
+                case 4 {
+                    return transparent_shader(r, hit, t); // Transparent shading
+                }
+                default {
+                    return (*hit).color; // Default to simple color shading
+                }
+            }
+        }
+
+        // ------------------------
+        // Reflection Shader
+        // ------------------------
+
+        fn reflection_shader(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> vec3f {
+            (*hit).has_hit = false; 
+            (*hit).depth = (*hit).depth + 1;
+            (*hit).emit = true;
+            (*r).origin = (*hit).position;
+            (*r).t_min = 1.0e-2;
+            (*r).t_max = 1.0e32;
+            (*r).direction = reflect((*r).direction, (*hit).normal);
+            return vec3f(0.0);
+        }
+
+        // ------------------------
+        // Refraction Shader
+        // ------------------------
+
+        fn refraction_shader(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> vec3f {
+            var dot_prod: f32 = dot(-(*r).direction, (*hit).normal);
+            (*hit).cos_sq_t = 1.0 - pow((*hit).ior1_over_ior2, 2.0) * (1.0 - pow(dot_prod, 2.0));
+            if ((*hit).cos_sq_t < 0.0f) {
+                reflection_shader(r, hit);
+            }
+            else {
+                (*r).direction = (*hit).ior1_over_ior2 * (dot_prod * (*hit).normal + (*r).direction) - (*hit).normal * sqrt((*hit).cos_sq_t);
+                (*hit).has_hit = false; 
+                (*hit).depth = (*hit).depth + 1;
+                (*r).origin = (*hit).position;
+                (*r).t_min = 1.0e-2;
+                (*r).t_max = 1.0e32;
+            }
+            return vec3f(0.0);
+        }
+
+        // ------------------------
+        // Transparent Shader
+        // ------------------------
+
+        // Calculates Fresnel reflection coefficient
+        fn fresnel_R(cos_i: f32, cos_t: f32, ior1_over_ior2: f32) -> f32 {
+            var r1: f32 = (ior1_over_ior2 * cos_i - cos_t) / (ior1_over_ior2 * cos_i + cos_t);
+            var r2: f32 = (cos_i - ior1_over_ior2 * cos_t) / (cos_i + ior1_over_ior2 * cos_t);
+            return (abs(pow(r1, 2.0)) + abs(pow(r2, 2.0))) / 2.0;
+        }
+
+        // Transparent shading function combining reflection and refraction with volumetric effects
+        fn transparent_shader(r: ptr<function, Ray>, hit: ptr<function, HitInfo>, t: ptr<function, u32>) -> vec3f {
+            var dot_prod: f32 = dot(-(*r).direction, (*hit).normal);
+            if((*hit).inside) {
+                var beam_tr: vec3f = exp(-(*hit).sigma_t * (*hit).dist);
+                var beam_prob: f32 = (beam_tr.x + beam_tr.y + beam_tr.z) / 3.0;
+                (*hit).has_hit = select(true, false, rnd(t) < beam_prob);
+                (*hit).rgbFactor *= beam_tr / beam_prob;
+            }
+            (*hit).cos_sq_t = 1.0 - pow((*hit).ior1_over_ior2, 2.0) * (1.0 - pow(dot_prod, 2.0));
+            var R: f32 = select(fresnel_R(dot_prod, sqrt((*hit).cos_sq_t), (*hit).ior1_over_ior2), 1.0, (*hit).cos_sq_t < 0.0f);
+            var refracted_w: vec3f = (*hit).ior1_over_ior2 * (dot_prod * (*hit).normal + (*r).direction) - (*hit).normal * sqrt((*hit).cos_sq_t);
+            (*r).direction = select(refracted_w, reflect((*r).direction, (*hit).normal), rnd(t) < R);
+            (*hit).has_hit = false; 
+            (*hit).depth = (*hit).depth + 1;
+            (*hit).emit = true;
+            (*r).origin = (*hit).position;
+            (*r).t_min = 1.0e-2;
+            (*r).t_max = 1.0e32;
+
+            return vec3f(0.0);
+        }
+
+        // ------------------------
+        // Fragment Shader
+        // ------------------------
+
+        struct FSOut {
+            @location(0) frame: vec4f,
+            @location(1) accum: vec4f,
+        };
+
+        @fragment
+        fn main_fs(@builtin(position) fragcoord: vec4f, @location(0) coords: vec2f) -> FSOut {
+            var factor: vec3f = vec3f(1.0);
+
+            let resolution: vec2u = textureDimensions(renderTexture);
+            let launch_idx: u32 = u32(fragcoord.y) * resolution.x + u32(fragcoord.x);
+            var t: u32 = tea(launch_idx, uniforms_ui.frame);
+            let jitter: vec2f = vec2f(rnd(&t), rnd(&t)) / f32(resolution.y);
+
+            // Background color
+            const bgcolor: vec4f = vec4f(1.0, 0.5843, 0.9294, 1.0);
+            // const bgcolor: vec4f = vec4f(0.0, 0.0, 0.0, 1.0);
+            const max_depth: u32 = 30u; // Maximum recursion depth
+            var result: vec3f = vec3f(0.0); // Accumulated color result
+            var final_result: vec4f = vec4f(0.0); // Final color result after averaging
+            var uv: vec2f = vec2f(jitter.x + coords.x * uniforms.aspect * 0.5, jitter.y + coords.y * 0.5);
+            var r: Ray = get_camera_ray(uv);
+            var hit: HitInfo = HitInfo(false, 0.0, vec3f(0.0), vec3f(0.0), vec3f(0.0), 0, 1, 0.0, 0.0, vec3f(0.0), true, vec3f(1.0), vec3f(0.0), false);
+
+            // Perform ray tracing with path tracing logic
+            for(var i: u32 = 0u; i < max_depth; i++) {
+                if (!intersect_min_max(&r)) { 
+                    // result += factor * bgcolor.rgb; break; 
+                }
+                if(intersect_scene(&r, &hit)) { 
+                    result += shade(&r, &hit, &t) * factor; 
+                    factor = hit.rgbFactor;
+                }
+                else { 
+                    // Use environment map for background
+                    let u = 0.5 + (1.0 / (2.0 * PI)) * atan2(r.direction.x, -r.direction.z);
+                    let v = acos(-r.direction.y) / PI;
+
+                    let xy: vec2i = vec2i(vec2(u, v) * vec2f(textureDimensions(environment)));
+                    let rgba: vec4f = vec4f(textureLoad(environment, xy, 0));
+
+                    result += factor * rgba.rgb; 
+                    break;
+                }
+                // else { result += factor * bgcolor.rgb; break; }
+                if(hit.has_hit) { 
+                    break; 
+                }
+            }
+
+            // Progressive update of image
+            let curr_sum: vec3f = textureLoad(renderTexture, vec2u(fragcoord.xy), 0).rgb * f32(uniforms_ui.frame);
+            let accum_color: vec3f = (result + curr_sum) / f32(uniforms_ui.frame + 1u);
+            var fsOut: FSOut;
+            const gamma: f32 = 1.0;
+            fsOut.frame = vec4f(pow(accum_color, vec3f(1.0 / gamma)), 1.0);
+            fsOut.accum = vec4f(accum_color, 1.0);
+            return fsOut;
+        }
+
+        // ------------------------
+        // Utility Functions
+        // ------------------------
+
+        // Simple hash function (Tea)
+        fn tea(v0: u32, v1: u32) -> u32 {
+            var temp0: u32 = v0;
+            var temp1: u32 = v1;
+            const N: u32 = 16u;
+            var s0: u32 = 0u;
+            for (var n: u32 = 0u; n < N; n++) {
+                s0 += 0x9e3779b9u;
+                temp0 = temp0 + (((temp1 << 4u) + 0xa341316cu) ^ (temp1 + s0) ^ ((temp1 >> 5u) + 0xc8013ea4u));
+                temp1 = temp1 + (((temp0 << 4u) + 0xad90777du) ^ (temp0 + s0) ^ ((temp0 >> 5u) + 0x7e95761eu));
+            }
+            return temp0;
+        }
+
+        // Multiply Congruential Generator
+        fn mcg31(prev: ptr<function, u32>) -> u32 {
+            const LCG_A: u32 = 1977654935u;
+            *prev = (LCG_A * (*prev)) & 0x7FFFFFFEu;
+            return *prev;
+        }
+
+        // Generates a random float between 0 and 1
+        fn rnd(prev: ptr<function, u32>) -> f32 {
+            return f32(mcg31(prev)) / f32(0x80000000u);
+        }
+    </script>    
+
+    <!-- WebGPU Canvas -->
+    <canvas id="webgpu-canvas" width="512" height="512" aria-label="WebGPU Rendering Canvas">
+        Please use a browser that supports HTML5 canvas.     
+    </canvas>
+
+    <!-- Progressive Rendering Button -->
+    <button id="Progressive">Start/Stop Progressive Rendering</button>
+</body>
+</html>

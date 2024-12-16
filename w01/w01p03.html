@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>W1P3</title>
+    
+    <!-- Load the JavaScript file with defer to ensure it runs after the HTML is parsed -->
+    <script src="w01p03.js" defer></script>
+    
+    <!-- WebGPU Shader in WGSL -->
+    <script id="wgsl" type="text/wgsl">
+        struct VSOut {
+            @builtin(position) position: vec4f,
+            @location(0)       coords: vec2f,
+        };
+
+        @vertex
+        fn main_vs(@builtin(vertex_index) VertexIndex: u32) -> VSOut {
+            const pos = array<vec2f, 4>(
+                vec2f(-1.0,  1.0),
+                vec2f(-1.0, -1.0),
+                vec2f( 1.0,  1.0),
+                vec2f( 1.0, -1.0)
+            );
+            var vsOut: VSOut;
+            vsOut.position = vec4f(pos[VertexIndex], 0.0, 1.0);
+            vsOut.coords = pos[VertexIndex];
+            return vsOut;
+        }
+
+        // Define Ray struct
+        struct Ray {
+            origin: vec3f,
+            direction: vec3f,
+            tmin: f32,
+            tmax: f32,
+        };
+
+        fn get_camera_ray(ipcoords: vec2f) -> Ray {
+            let cam_const = 1.0;
+            let p = vec3f(0.0, 0.5, 0.0);
+            let up_vec = vec3f(0.0, 1.0, 0.0);
+            var r: Ray;
+            r.origin = vec3f(2.0, 1.5, 2.0);
+            let v = normalize(p - r.origin);
+            let b1 = normalize(cross(v, up_vec));
+            let b2 = cross(b1, v);
+            let q = b1 * ipcoords.x + b2 * ipcoords.y + v * cam_const;
+            r.direction = normalize(q);
+            r.tmin = 0.0;
+            r.tmax = 1000.0;
+            return r;
+        }
+
+        @fragment
+        fn main_fs(@location(0) coords: vec2f) -> @location(0) vec4f {
+            let ipcoords = coords * 0.5;
+            
+            // Generate a camera ray
+            let r = get_camera_ray(ipcoords);
+            
+            // Output the ray direction as a color
+            return vec4f(r.direction * 0.5 + 0.5, 1.0);
+        }
+    </script>
+</head>
+<body>
+    <canvas id="webgpu-canvas" width="512" height="512">
+        Please use a browser that supports HTML5 canvas.
+    </canvas>
+</body>
+</html>

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cycles vs WebGPU</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        ul {
+            list-style-type: disc;
+            margin-left: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+        }
+        .section {
+            margin-bottom: 20px;
+        }
+        .key-takeaways {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-left: 4px solid #007BFF;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Cycles (Blender) vs WebGPU</h1>
+
+        <div class="section">
+            <h2>Cycles (Blender) Pros</h2>
+            <ul>
+                <li><strong>Ease of Use:</strong> Ready-to-use with powerful features and a user-friendly interface.</li>
+                <li><strong>Physically Based Rendering:</strong> Accurate global illumination, advanced shaders, and optimized light transport.</li>
+                <li><strong>Rich Ecosystem:</strong> Seamless integration with Blender’s tools for animation and modeling.</li>
+                <li><strong>Highly Optimized:</strong> Supports CPU/GPU rendering with optimizations for CUDA, OptiX, and HIP.</li>
+                <li><strong>Feature Set:</strong> Includes volumetrics, caustics, and subsurface scattering.</li>
+                <li><strong>Community Support:</strong> Extensive documentation and a large user base.</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>WebGPU Pros</h2>
+            <ul>
+                <li><strong>Customization:</strong> Full control over rendering pipelines, shaders, and optimizations.</li>
+                <li><strong>Real-Time Rendering:</strong> Ideal for interactive content like games, VR/AR, or web-based apps.</li>
+                <li><strong>Platform Independence:</strong> Runs directly in the browser without extra software.</li>
+                <li><strong>Learning Opportunity:</strong> Offers deep insights into graphics programming.</li>
+                <li><strong>Dynamic Integrations:</strong> Supports real-time data and web APIs.</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>What WebGPU Offers That Cycles Doesn’t</h2>
+            <ul>
+                <li><strong>Real-Time Performance:</strong> Better for interactive applications.</li>
+                <li><strong>Custom Pipelines:</strong> Tailor rendering logic to your needs.</li>
+                <li><strong>Web Deployment:</strong> Direct browser support for broad accessibility.</li>
+                <li><strong>Low-Level Control:</strong> Experiment with cutting-edge techniques.</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>Challenges in Recreating Cycles in WebGPU</h2>
+            <ul>
+                <li><strong>Path Tracing:</strong> Requires efficient ray-tracing and light sampling.</li>
+                <li><strong>Advanced Shading:</strong> Subsurface scattering and volumetrics are complex to implement.</li>
+                <li><strong>Global Illumination:</strong> Accurate indirect lighting is computationally intensive.</li>
+                <li><strong>Optimization:</strong> Hard to match Cycles’ performance on diverse hardware.</li>
+            </ul>
+        </div>
+
+        <div class="key-takeaways">
+            <h2>Key Takeaways</h2>
+            <ul>
+                <li>Use <strong>Cycles</strong> for high-quality, offline rendering with minimal setup.</li>
+                <li>Use <strong>WebGPU</strong> for real-time, interactive rendering and greater flexibility.</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

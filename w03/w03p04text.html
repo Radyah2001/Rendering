@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Texture Aliasing and Mitigation Techniques</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        p {
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Understanding Texture Aliasing and Its Mitigation</h1>
+
+    <h2>Pixel Subdivision</h2>
+    <p>
+        To address the issue of texture aliasing, we can employ a technique called <strong>pixel subdivision</strong>. This involves dividing each pixel into smaller subdivisions and averaging the colors of those subdivisions. The greater the number of subdivisions, the more effectively we can combat aliasing. However, it's important to note that increasing the number of subdivisions also increases the computational cost.
+    </p>
+
+    <h2>Texture Filtering Methods</h2>
+    <p>
+        In addition to pixel subdivision, the choice of <strong>texture filtering method</strong> also plays a role in reducing aliasing. 
+        <em>Linear filtering</em>, which averages the colors of neighboring pixels, can help smooth out jagged edges and reduce aliasing. 
+        <em>Nearest filtering</em>, on the other hand, simply selects the color of the nearest pixel, which can result in a more pixelated or blocky appearance.
+    </p>
+
+    <h2>Combining Techniques for Optimal Results</h2>
+    <p>
+        By combining pixel subdivision with linear filtering, we can effectively reduce texture aliasing and achieve a more visually appealing result.
+    </p>
+</body>
+</html>
