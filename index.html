@@ -5,11 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Project Dashboard</title>
     <style>
-        /* Inline CSS for simplicity; consider using external CSS for larger projects */
         body {
             font-family: Arial, sans-serif;
             background-color: #f9f9f9;
             padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+        .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            width: 100%;
+            max-width: 1200px;
+        }
+        .side-image {
+            width: 150px;
+            margin: 0 20px;
+        }
+        .side-image img {
+            width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .content {
+            flex: 1;
         }
         h1 {
             text-align: center;
@@ -45,19 +66,29 @@
     </style>
 </head>
 <body>
-    <h1>Lab Journal and project</h1>
-    <ul class="week-list">
-        <li><a href="Project/index.html">Project</a></li>
-        <li><a href="w01/index.html">Week 01</a></li>
-        <li><a href="w02/index.html">Week 02</a></li>
-        <li><a href="w03/index.html">Week 03</a></li>
-        <li><a href="w04/w04p01 - 09.pdf">Week 04</a></li>
-        <li><a href="w05/index.html">Week 05</a></li>
-        <li><a href="w06/index.html">Week 06</a></li>
-        <li><a href="w07/index.html">Week 07</a></li>
-        <li><a href="w08/index.html">Week 08</a></li>
-        <li><a href="w09/index.html">Week 09</a></li>
-        <li><a href="w10/index.html">Week 10</a></li>
-    </ul>
+    <div class="container">
+        <div class="side-image">
+            <img src="w10/w10p03(1).png" alt="Left Image">
+        </div>
+        <div class="content">
+            <h1>Lab Journal and project - 02562 Rendering - Introduction, Fall 2024</h1>
+            <ul class="week-list">
+                <li><a href="Project/index.html">Project</a></li>
+                <li><a href="w01/index.html">Week 01</a></li>
+                <li><a href="w02/index.html">Week 02</a></li>
+                <li><a href="w03/index.html">Week 03</a></li>
+                <li><a href="w04/w04p01 - 09.pdf">Week 04</a></li>
+                <li><a href="w05/index.html">Week 05</a></li>
+                <li><a href="w06/index.html">Week 06</a></li>
+                <li><a href="w07/index.html">Week 07</a></li>
+                <li><a href="w08/index.html">Week 08</a></li>
+                <li><a href="w09/index.html">Week 09</a></li>
+                <li><a href="w10/index.html">Week 10</a></li>
+            </ul>
+        </div>
+        <div class="side-image">
+            <img src="w10/w10p03(2).png" alt="Right Image">
+        </div>
+    </div>
 </body>
 </html>
