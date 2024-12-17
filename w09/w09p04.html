@@ -134,7 +134,6 @@
 
         // Struct to represent a light source
         struct Light {
-            //L_i: f32,
             L_i: vec3f,        // Intensity of the light (RGB)
             w_i: vec3f,        // Direction or position of the light
             dist: f32,         // Distance to the light source
@@ -192,7 +191,7 @@
             inside: bool,         // Flag to indicate if the ray is inside a medium
         };
 
-        // Struct for Orthonormal Basis (Unused in current code)
+        // Struct for Orthonormal Basis
         struct Onb {
             tangent: vec3f,
             binormal: vec3f,

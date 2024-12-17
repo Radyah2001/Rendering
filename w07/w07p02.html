@@ -237,7 +237,7 @@
             emission: vec3f,      // Emission color at the hit point
         };
 
-        // Struct for Orthonormal Basis (Unused in current code)
+        // Struct for Orthonormal Basis
         struct Onb {
             tangent: vec3f,
             binormal: vec3f,
@@ -462,7 +462,6 @@
         fn intersect_scene(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> bool {
             var idx: Idx;
 
-            // Uncomment the following lines to include sphere intersections in the scene
             /*
             if(intersect_sphere((*r), hit, vec3f(420.0, 90.0, 370.0), 90.0)) {
                 (*r).t_max = (*hit).dist;

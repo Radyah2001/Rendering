@@ -185,8 +185,9 @@ async function main() {
         }
     });
 
+    bindGroup = onReadComplete(device, pipeline);
+
     function animate() {
-        bindGroup = onReadComplete(device, pipeline);
         render();
         if (progressing) {
             frame++;

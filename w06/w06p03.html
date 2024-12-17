@@ -216,7 +216,7 @@
             cos_sq_t: f32,        // Cosine squared of the transmission angle
         };
 
-        // Struct for Orthonormal Basis (Unused in current code)
+        // Struct for Orthonormal Basis
         struct Onb {
             tangent: vec3f,
             binormal: vec3f,
@@ -254,7 +254,7 @@
 
         // Generates a camera ray based on normalized device coordinates (uv)
         fn get_camera_ray(uv: vec2f) -> Ray {
-            var p = vec3f(277.0, 275.0, 0.0); // Pivot point (unused in current context)
+            var p = vec3f(277.0, 275.0, 0.0); // Pivot point
             var up_vec = vec3f(0.0, 1.0, 0.0); // Up vector for camera orientation
             var r: Ray;
             r.origin = vec3f(277.0, 275.0, -570.0); // Camera position in world space

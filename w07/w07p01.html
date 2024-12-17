@@ -228,7 +228,7 @@
             cos_sq_t: f32,        // Cosine squared of the transmission angle
         };
 
-        // Struct for Orthonormal Basis (Unused in current code)
+        // Struct for Orthonormal Basis
         struct Onb {
             tangent: vec3f,
             binormal: vec3f,
@@ -452,6 +452,32 @@
         // Tests intersection between a ray and the entire scene
         fn intersect_scene(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> bool {
             var idx: Idx;
+
+            // Check intersection with first sphere
+            // if (intersect_sphere(*r, hit, vec3f(420.0, 90.0, 370.0), 90.0)) {
+            //     (*r).t_max = (*hit).dist;
+            //     (*hit).color = vec3f(0.0, 0.0, 0.0);
+            //     (*hit).shader = 2;
+            //    if (dot((*hit).normal, (*r).direction) < 0.0f) {
+            //        (*hit).ior1_over_ior2 = 1.0 / 1.5;
+            //    } else {
+            //        (*hit).ior1_over_ior2 = 1.5;
+            //        (*hit).normal = -(*hit).normal;
+            //    }
+            // }
+
+            // Check intersection with second sphere
+            // if (intersect_sphere(*r, hit, vec3f(130.0, 90.0, 250.0), 90.0)) {
+            //     (*r).t_max = (*hit).dist;
+            //     (*hit).color = vec3f(0.0, 0.0, 0.0);
+            //     (*hit).shader = 3;
+            //     if (dot((*hit).normal, (*r).direction) < 0.0f) {
+            //         (*hit).ior1_over_ior2 = 1.0 / 1.5;
+            //     } else {
+            //         (*hit).ior1_over_ior2 = 1.5;
+            //         (*hit).normal = -(*hit).normal;
+            //     }
+            // }
             
             if (intersect_trimesh(r, hit, &idx)) { 
                 (*hit).color = materialColorEmission[meshFaces[idx.i].w].xyz;

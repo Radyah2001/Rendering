@@ -167,11 +167,6 @@
             shininess: f32,         // Shininess factor for Phong shading
         };
 
-        /**
-         * Generates a camera ray based on screen coordinates (uv).
-         * @param uv - Normalized device coordinates (NDC)
-         * @returns Ray - The generated camera ray
-         */
         fn get_camera_ray(uv: vec2f) -> Ray {
             // Camera setup
             var p = vec3f(0.0, 0.5, 0.0); // Look-at point
@@ -194,14 +189,6 @@
             return r;
         }
 
-        /**
-         * Intersects a ray with a plane.
-         * @param r - Ray to intersect
-         * @param hit - Pointer to HitInfo structure
-         * @param position - A point on the plane
-         * @param normal - Normal vector of the plane
-         * @returns bool - True if intersection occurs, else false
-         */
         fn intersect_plane(r: Ray, hit: ptr<function, HitInfo>, position: vec3f, normal: vec3f) -> bool {
             // Check if ray is parallel to the plane
             if (abs(dot(r.direction, normal)) < 1e-8) {
@@ -222,13 +209,6 @@
             return false;
         }
 
-        /**
-         * Intersects a ray with a triangle using the Möller–Trumbore algorithm.
-         * @param r - Ray to intersect
-         * @param hit - Pointer to HitInfo structure
-         * @param v - Array of three vertices defining the triangle
-         * @returns bool - True if intersection occurs, else false
-         */
         fn intersect_triangle(r: Ray, hit: ptr<function, HitInfo>, v: array<vec3f, 3>) -> bool {
             var e0 = v[1] - v[0];
             var e1 = v[2] - v[0];
@@ -259,14 +239,6 @@
             return false;
         }
 
-        /**
-         * Intersects a ray with a sphere.
-         * @param r - Ray to intersect
-         * @param hit - Pointer to HitInfo structure
-         * @param center - Center of the sphere
-         * @param radius - Radius of the sphere
-         * @returns bool - True if intersection occurs, else false
-         */
         fn intersect_sphere(r: Ray, hit: ptr<function, HitInfo>, center: vec3f, radius: f32) -> bool {
             var b_half = dot((r.origin - center), r.direction);
             var c = dot(r.origin - center, r.origin - center) - pow(radius, 2);
@@ -299,12 +271,6 @@
             return false;
         }
 
-        /**
-         * Intersects a ray with the entire scene (planes, triangles, spheres).
-         * @param r - Pointer to Ray structure
-         * @param hit - Pointer to HitInfo structure
-         * @returns bool - True if any intersection occurs, else false
-         */
         fn intersect_scene(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> bool {
             // Intersect with a plane at y=0
             if (intersect_plane((*r), hit, vec3f(0.0, 0.0, 0.0), vec3f(0.0, 1.0, 0.0))) {
@@ -344,11 +310,6 @@
             return (*hit).has_hit;
         }
 
-        /**
-         * Samples a point light source at a given position.
-         * @param pos - Position to sample the light from
-         * @returns Light - The sampled light properties
-         */
         fn sample_point_light(pos: vec3f) -> Light {
             var light: Light;
             var light_pos = vec3f(0.0, 1.0, 0.0); // Position of the light
@@ -360,12 +321,6 @@
             return light;
         }
 
-        /**
-         * Applies the Lambertian shading model to the hit point.
-         * @param r - Pointer to Ray structure
-         * @param hit - Pointer to HitInfo structure
-         * @returns vec3f - Calculated color based on Lambertian shading
-         */
         fn lambertian(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> vec3f {
             var light: Light = sample_point_light((*hit).position);
 
@@ -394,12 +349,6 @@
             }
         }
 
-        /**
-         * Applies the Reflection shader to the hit point.
-         * @param r - Pointer to Ray structure
-         * @param hit - Pointer to HitInfo structure
-         * @returns vec3f - Calculated color based on reflection (currently black)
-         */
         fn reflection_shader(r: ptr<function, Ray>, hit: ptr<function, HitInfo>) -> vec3f {
             // Update ray for reflection
             (*hit).has_hit = false;
