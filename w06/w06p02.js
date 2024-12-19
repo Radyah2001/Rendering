@@ -63,9 +63,9 @@ async function main()
     });
 
     var obj_filename = "CornellBoxWithBlocks.obj";
-    var g_drawingInfo = null;
+    var drawingInfo = null;
 
-    g_drawingInfo = await readOBJFile(obj_filename, 1, true);
+    drawingInfo = await readOBJFile(obj_filename, 1, true);
 
     var bindGroup;
     function onReadComplete(device, pipeline)
@@ -84,27 +84,27 @@ async function main()
         }
 
         var matColors = [];
-        for (let i = 0; i < g_drawingInfo.materials.length; i++) {i
-            matColors.push(g_drawingInfo.materials[i].color.r + g_drawingInfo.materials[i].emission.r);
-            matColors.push(g_drawingInfo.materials[i].color.g + g_drawingInfo.materials[i].emission.g);
-            matColors.push(g_drawingInfo.materials[i].color.b + g_drawingInfo.materials[i].emission.b);
-            matColors.push(g_drawingInfo.materials[i].color.a + g_drawingInfo.materials[i].emission.a);
+        for (let i = 0; i < drawingInfo.materials.length; i++) {i
+            matColors.push(drawingInfo.materials[i].color.r + drawingInfo.materials[i].emission.r);
+            matColors.push(drawingInfo.materials[i].color.g + drawingInfo.materials[i].emission.g);
+            matColors.push(drawingInfo.materials[i].color.b + drawingInfo.materials[i].emission.b);
+            matColors.push(drawingInfo.materials[i].color.a + drawingInfo.materials[i].emission.a);
         }
 
         buffers.color = device.createBuffer({
-            size: g_drawingInfo.materials.length * 16.0, // number of bytes
+            size: drawingInfo.materials.length * 16.0, // number of bytes
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
         device.queue.writeBuffer(buffers.color, 0, new Float32Array(matColors));
 
         buffers.light_indices = device.createBuffer({
-            size: g_drawingInfo.light_indices.byteLength, // number of bytes
+            size: drawingInfo.light_indices.byteLength, // number of bytes
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
-        device.queue.writeBuffer(buffers.light_indices, 0, g_drawingInfo.light_indices);
+        device.queue.writeBuffer(buffers.light_indices, 0, drawingInfo.light_indices);
 
 
-        build_bsp_tree(g_drawingInfo, device, buffers);
+        build_bsp_tree(drawingInfo, device, buffers);
 
         bindGroup = device.createBindGroup({
             layout: pipeline.getBindGroupLayout(0),

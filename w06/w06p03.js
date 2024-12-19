@@ -105,8 +105,8 @@ async function main() {
 
     // Load OBJ model
     const objFilename = "CornellBox.obj";
-    let g_drawingInfo = await readOBJFile(objFilename, 1, true);
-    if (!g_drawingInfo) {
+    let drawingInfo = await readOBJFile(objFilename, 1, true);
+    if (!drawingInfo) {
         console.error("Failed to load OBJ model:", objFilename);
         return;
     }
@@ -129,8 +129,8 @@ async function main() {
 
         // Prepare material colors
         const matColors = [];
-        for (let i = 0; i < g_drawingInfo.materials.length; i++) {
-            const mat = g_drawingInfo.materials[i];
+        for (let i = 0; i < drawingInfo.materials.length; i++) {
+            const mat = drawingInfo.materials[i];
             // Combine color and emission
             matColors.push(mat.color.r + mat.emission.r);
             matColors.push(mat.color.g + mat.emission.g);
@@ -139,18 +139,18 @@ async function main() {
         }
 
         buffers.color = device.createBuffer({
-            size: g_drawingInfo.materials.length * 16, // 4 floats * 4 bytes/float
+            size: drawingInfo.materials.length * 16, // 4 floats * 4 bytes/float
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
         device.queue.writeBuffer(buffers.color, 0, new Float32Array(matColors));
 
         buffers.light_indices = device.createBuffer({
-            size: g_drawingInfo.light_indices.byteLength,
+            size: drawingInfo.light_indices.byteLength,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
-        device.queue.writeBuffer(buffers.light_indices, 0, g_drawingInfo.light_indices);
+        device.queue.writeBuffer(buffers.light_indices, 0, drawingInfo.light_indices);
 
-        build_bsp_tree(g_drawingInfo, device, buffers);
+        build_bsp_tree(drawingInfo, device, buffers);
 
         // Create bind group
         const group = device.createBindGroup({

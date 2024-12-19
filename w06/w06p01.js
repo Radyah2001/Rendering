@@ -66,8 +66,8 @@ async function main() {
 
     // Load 3D model (OBJ file)
     const objFilename = "bunny.obj";
-    let g_drawingInfo = await readOBJFile(objFilename, 1, true);
-    if (!g_drawingInfo) {
+    let drawingInfo = await readOBJFile(objFilename, 1, true);
+    if (!drawingInfo) {
         console.error("Failed to load OBJ file:", objFilename);
         return;
     }
@@ -104,8 +104,8 @@ async function main() {
 
         // Prepare material colors from loaded materials
         const matColors = [];
-        for (let i = 0; i < g_drawingInfo.materials.length; i++) {
-            let mat = g_drawingInfo.materials[i];
+        for (let i = 0; i < drawingInfo.materials.length; i++) {
+            let mat = drawingInfo.materials[i];
             // Combine material color and emission
             matColors.push(mat.color.r + mat.emission.r);
             matColors.push(mat.color.g + mat.emission.g);
@@ -121,13 +121,13 @@ async function main() {
         device.queue.writeBuffer(buffers.color, 0, new Float32Array(matColors));
 
         buffers.mat_indices = device.createBuffer({
-            size: g_drawingInfo.mat_indices.byteLength,
+            size: drawingInfo.mat_indices.byteLength,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
-        device.queue.writeBuffer(buffers.mat_indices, 0, g_drawingInfo.mat_indices);
+        device.queue.writeBuffer(buffers.mat_indices, 0, drawingInfo.mat_indices);
 
         // Build BSP tree buffers
-        build_bsp_tree(g_drawingInfo, device, buffers);
+        build_bsp_tree(drawingInfo, device, buffers);
 
         // Create bind group with all buffers
         const bindGroup = device.createBindGroup({
